@@ -200,7 +200,7 @@ class StockAnalysisUI:
         """Create the main Gradio interface"""
         
         # Create the interface
-        with gr.Blocks(title="Stock Analysis Results", theme=gr.themes.Soft()) as demo:
+        with gr.Blocks(title="Stock Analysis Results") as demo:
             gr.Markdown("# 📈 Stock Analysis Pipeline Results Viewer")
             gr.Markdown("Visualize intermediate results from your stock analysis pipeline")
             
