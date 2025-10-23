@@ -1,7 +1,7 @@
 [project]
-name = "stock"
+name = "ai-quant-trader"
 version = "0.1.0"
-description = "Add your description here"
+description = "AI-powered quantitative trading system with intelligent market analysis and portfolio management"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

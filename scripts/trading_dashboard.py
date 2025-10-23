@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-AI Trading System - Professional Trading Dashboard
-现代化、专业的交易分析仪表板
+AI Quant Trader
 """
 
 import json
@@ -20,14 +19,14 @@ except ImportError:
     exit(1)
 
 class TradingDashboard:
-    """专业交易仪表板"""
-    
-    def __init__(self, results_dir="/Users/rodin/Workspace/algovate/lab/stock/data/results"):
+    """Professional trading dashboard"""
+
+    def __init__(self, results_dir="data/results"):
         self.results_dir = Path(results_dir)
         self.portfolio_file = Path("data/portfolio.json")
-        
+
     def load_latest_results(self):
-        """加载最新的分析结果"""
+        """Load the latest analysis results"""
         try:
             step_files = {
                 'step1': self._find_latest_file('step1_fetch_*_raw_data.json'),
@@ -52,14 +51,14 @@ class TradingDashboard:
             return {}
 
     def _find_latest_file(self, pattern):
-        """查找最新的匹配文件"""
+        """Find the latest matching file"""
         files = list(self.results_dir.glob(pattern))
         if files:
             return max(files, key=lambda x: x.stat().st_mtime)
         return None
 
     def load_portfolio_data(self):
-        """加载投资组合数据"""
+        """Load portfolio data"""
         try:
             if self.portfolio_file.exists():
                 with open(self.portfolio_file, 'r', encoding='utf-8') as f:
@@ -70,14 +69,14 @@ class TradingDashboard:
             return None
 
     def create_market_overview(self, results):
-        """创建市场概览"""
+        """Create market overview"""
         if not results.get('step1'):
-            return None, "无市场数据"
-        
-        # 获取最新价格数据
+            return None, "No market data"
+
+        # Get latest price data
         market_data = results['step1']
         symbols = list(market_data.keys())
-        
+
         overview_data = []
         for symbol in symbols:
             if symbol in market_data and 'data' in market_data[symbol]:
@@ -90,31 +89,31 @@ class TradingDashboard:
                         'Change': f"{latest.get('change', 0):.2f}",
                         'Volume': f"{latest.get('volume', 0):,}"
                     })
-        
+
         df = pd.DataFrame(overview_data)
-        return df, f"📊 市场概览 - {len(symbols)} 只股票"
+        return df, f"📊 Market Overview - {len(symbols)} stocks"
 
     def create_price_chart(self, symbol, results):
-        """创建价格图表"""
+        """Create price chart"""
         if not results.get('step3') or symbol not in results['step3']:
             return None
-        
+
         data = results['step3'][symbol]['data']
         df = pd.DataFrame(data)
-        
+
         if df.empty:
             return None
-        
-        # 创建子图
+
+        # Create subplots
         fig = make_subplots(
             rows=3, cols=1,
             shared_xaxes=True,
             vertical_spacing=0.05,
-            subplot_titles=(f'{symbol} 价格走势', '成交量', '技术指标'),
+            subplot_titles=(f'{symbol} Price Trend', 'Volume', 'Technical Indicators'),
             row_heights=[0.5, 0.2, 0.3]
         )
-        
-        # 价格K线图
+
+        # Price candlestick chart
         fig.add_trace(
             go.Candlestick(
                 x=df.index,
@@ -122,234 +121,234 @@ class TradingDashboard:
                 high=df['high'],
                 low=df['low'],
                 close=df['close'],
-                name='价格',
+                name='Price',
                 increasing_line_color='#00ff88',
                 decreasing_line_color='#ff4444'
             ),
             row=1, col=1
         )
-        
-        # 移动平均线
+
+        # Moving averages
         if 'ma_20' in df.columns:
             fig.add_trace(
-                go.Scatter(x=df.index, y=df['ma_20'], name='MA20', 
+                go.Scatter(x=df.index, y=df['ma_20'], name='MA20',
                           line=dict(color='orange', width=2)),
                 row=1, col=1
             )
         if 'ma_50' in df.columns:
             fig.add_trace(
-                go.Scatter(x=df.index, y=df['ma_50'], name='MA50', 
+                go.Scatter(x=df.index, y=df['ma_50'], name='MA50',
                           line=dict(color='blue', width=2)),
                 row=1, col=1
             )
-        
-        # 成交量
+
+        # Volume
         fig.add_trace(
-            go.Bar(x=df.index, y=df['volume'], name='成交量', 
+            go.Bar(x=df.index, y=df['volume'], name='Volume',
                    marker_color='lightblue', opacity=0.7),
             row=2, col=1
         )
-        
-        # RSI指标
+
+        # RSI indicator
         if 'rsi' in df.columns:
             fig.add_trace(
-                go.Scatter(x=df.index, y=df['rsi'], name='RSI', 
+                go.Scatter(x=df.index, y=df['rsi'], name='RSI',
                           line=dict(color='purple', width=2)),
                 row=3, col=1
             )
-            # RSI超买超卖线
+            # RSI overbought/oversold lines
             fig.add_hline(y=70, line_dash="dash", line_color="red", row=3, col=1)
             fig.add_hline(y=30, line_dash="dash", line_color="green", row=3, col=1)
-        
+
         fig.update_layout(
-            title=f'{symbol} 技术分析',
+            title=f'{symbol} Technical Analysis',
             xaxis_rangeslider_visible=False,
             height=800,
             showlegend=True,
             template='plotly_dark'
         )
-        
+
         return fig
 
     def create_ai_analysis(self, results):
-        """创建AI分析面板"""
+        """Create AI analysis panel"""
         if not results.get('step4'):
-            return None, None, "无AI预测数据"
-        
+            return None, None, "No AI prediction data"
+
         predictions = results['step4']['predictions']
-        
-        # 预测摘要
+
+        # Prediction summary
         analysis_data = []
         for symbol, pred in predictions.items():
             prediction = pred['prediction']
             confidence = pred['confidence']
-            
-            # 预测方向
+
+            # Prediction direction
             if prediction > 0.01:
-                direction = "📈 看涨"
+                direction = "📈 Bullish"
                 color = "green"
             elif prediction < -0.01:
-                direction = "📉 看跌"
+                direction = "📉 Bearish"
                 color = "red"
             else:
-                direction = "➡️ 中性"
+                direction = "➡️ Neutral"
                 color = "orange"
-            
+
             analysis_data.append({
-                '股票': symbol,
-                '预测': f"{prediction:.2%}",
-                '置信度': f"{confidence:.1%}",
-                '方向': direction,
-                '颜色': color
+                'Stock': symbol,
+                'Prediction': f"{prediction:.2%}",
+                'Confidence': f"{confidence:.1%}",
+                'Direction': direction,
+                'Color': color
             })
-        
+
         df_analysis = pd.DataFrame(analysis_data)
-        
-        # 预测分布图
+
+        # Prediction distribution chart
         symbols = list(predictions.keys())
         pred_values = [predictions[s]['prediction']*100 for s in symbols]
         confidences = [predictions[s]['confidence']*100 for s in symbols]
-        
+
         fig = go.Figure()
-        
-        # 预测值条形图
+
+        # Prediction value bar chart
         colors = ['green' if p > 0 else 'red' for p in pred_values]
         fig.add_trace(go.Bar(
-            x=symbols, 
+            x=symbols,
             y=pred_values,
-            name='预测值 (%)',
+            name='Prediction (%)',
             marker_color=colors,
             text=[f"{p:.1f}%" for p in pred_values],
             textposition='auto'
         ))
-        
+
         fig.update_layout(
-            title="AI预测分析",
-            xaxis_title="股票代码",
-            yaxis_title="预测涨跌幅 (%)",
+            title="AI Prediction Analysis",
+            xaxis_title="Stock Symbol",
+            yaxis_title="Predicted Change (%)",
             height=400,
             template='plotly_dark'
         )
-        
-        return df_analysis, fig, f"🤖 AI分析 - {len(predictions)} 只股票"
+
+        return df_analysis, fig, f"🤖 AI Analysis - {len(predictions)} stocks"
 
     def create_trading_signals(self, results):
-        """创建交易信号面板"""
+        """Create trading signals panel"""
         if not results.get('step5'):
-            return None, None, "无交易信号数据"
-        
+            return None, None, "No trading signals data"
+
         signals = results['step5']
-        
-        # 信号摘要
+
+        # Signal summary
         signal_data = []
         for symbol, signal in signals.items():
             signal_type = signal['signal']
             strength = signal['strength']
             confidence = signal['confidence']
-            
-            # 信号图标
+
+            # Signal icon
             if signal_type == 'BUY':
-                icon = "🟢 买入"
+                icon = "🟢 Buy"
                 color = "green"
             elif signal_type == 'SELL':
-                icon = "🔴 卖出"
+                icon = "🔴 Sell"
                 color = "red"
             else:
-                icon = "🟡 持有"
+                icon = "🟡 Hold"
                 color = "orange"
-            
+
             signal_data.append({
-                '股票': symbol,
-                '信号': icon,
-                '强度': f"{strength:.2f}",
-                '置信度': f"{confidence:.1%}",
-                '颜色': color
+                'Stock': symbol,
+                'Signal': icon,
+                'Strength': f"{strength:.2f}",
+                'Confidence': f"{confidence:.1%}",
+                'Color': color
             })
-        
+
         df_signals = pd.DataFrame(signal_data)
-        
-        # 信号分布图
+
+        # Signal distribution chart
         symbols = list(signals.keys())
         signal_types = [signals[s]['signal'] for s in symbols]
         strengths = [signals[s]['strength']*100 for s in symbols]
-        
+
         fig = go.Figure()
-        
-        # 信号强度条形图
+
+        # Signal strength bar chart
         colors = {'BUY': 'green', 'SELL': 'red', 'HOLD': 'orange'}
         bar_colors = [colors.get(s, 'gray') for s in signal_types]
-        
+
         fig.add_trace(go.Bar(
             x=symbols,
             y=strengths,
-            name='信号强度',
+            name='Signal Strength',
             marker_color=bar_colors,
             text=signal_types,
             textposition='auto'
         ))
-        
+
         fig.update_layout(
-            title="交易信号分析",
-            xaxis_title="股票代码",
-            yaxis_title="信号强度 (%)",
+            title="Trading Signals Analysis",
+            xaxis_title="Stock Symbol",
+            yaxis_title="Signal Strength (%)",
             height=400,
             template='plotly_dark'
         )
-        
-        return df_signals, fig, f"📈 交易信号 - {len(signals)} 只股票"
+
+        return df_signals, fig, f"📈 Trading Signals - {len(signals)} stocks"
 
     def create_portfolio_dashboard(self, portfolio_data):
-        """创建投资组合仪表板"""
+        """Create portfolio dashboard"""
         if not portfolio_data:
-            return None, None, None, "无投资组合数据"
-        
+            return None, None, None, "No portfolio data"
+
         cash = portfolio_data.get('cash', 0)
         positions = portfolio_data.get('positions', {})
-        
-        # 投资组合概览
+
+        # Portfolio overview
         total_value = cash
         position_values = []
-        
+
         for symbol, pos in positions.items():
             shares = pos.get('shares', 0)
             current_price = pos.get('current_price', 0)
             value = shares * current_price
             total_value += value
             position_values.append({
-                '股票': symbol,
-                '股数': shares,
-                '当前价格': f"${current_price:.2f}",
-                '市值': f"${value:,.2f}",
-                '盈亏': f"${pos.get('unrealized_pnl', 0):,.2f}"
+                'Stock': symbol,
+                'Shares': shares,
+                'Current Price': f"${current_price:.2f}",
+                'Market Value': f"${value:,.2f}",
+                'P&L': f"${pos.get('unrealized_pnl', 0):,.2f}"
             })
-        
+
         df_positions = pd.DataFrame(position_values)
-        
-        # 资产配置饼图
+
+        # Asset allocation pie chart
         if total_value > 0:
             cash_pct = (cash / total_value) * 100
             positions_pct = ((total_value - cash) / total_value) * 100
-            
+
             fig_pie = go.Figure(data=[go.Pie(
-                labels=['现金', '股票'],
+                labels=['Cash', 'Stocks'],
                 values=[cash, total_value - cash],
                 hole=0.3,
                 textinfo='label+percent+value',
                 texttemplate='%{label}<br>%{percent}<br>$%{value:,.0f}'
             )])
-            
+
             fig_pie.update_layout(
-                title="资产配置",
+                title="Asset Allocation",
                 height=400,
                 template='plotly_dark'
             )
         else:
             fig_pie = None
-        
-        # 投资组合概览
+
+        # Portfolio overview
         overview_data = {
-            '指标': ['总资产', '现金', '股票市值', '持仓数量'],
-            '数值': [
+            'Metric': ['Total Assets', 'Cash', 'Stock Value', 'Position Count'],
+            'Value': [
                 f"${total_value:,.2f}",
                 f"${cash:,.2f}",
                 f"${total_value - cash:,.2f}",
@@ -357,68 +356,68 @@ class TradingDashboard:
             ]
         }
         df_overview = pd.DataFrame(overview_data)
-        
-        return df_overview, df_positions, fig_pie, f"💼 投资组合 - 总价值 ${total_value:,.2f}"
+
+        return df_overview, df_positions, fig_pie, f"💼 Portfolio - Total Value ${total_value:,.2f}"
 
     def create_orders_panel(self, results):
-        """创建订单面板"""
+        """Create orders panel"""
         if not results.get('step6'):
-            return None, None, "无订单数据"
-        
+            return None, None, "No orders data"
+
         orders = results['step6']
         if not orders:
-            return None, None, "暂无生成订单"
-        
-        # 订单摘要
+            return None, None, "No orders generated"
+
+        # Order summary
         order_data = []
         total_cost = 0
         total_proceeds = 0
-        
+
         for order in orders:
             symbol = order.get('symbol', '')
             action = order.get('action', '')
             quantity = order.get('quantity', 0)
             price = order.get('estimated_price', 0)
             reason = order.get('reason', '')
-            
+
             if action == 'BUY':
                 cost = order.get('estimated_cost', 0)
                 total_cost += cost
                 value_str = f"${cost:,.2f}"
-                icon = "🟢 买入"
+                icon = "🟢 Buy"
             else:
                 proceeds = order.get('estimated_proceeds', 0)
                 total_proceeds += proceeds
                 value_str = f"${proceeds:,.2f}"
-                icon = "🔴 卖出"
-            
+                icon = "🔴 Sell"
+
             order_data.append({
-                '股票': symbol,
-                '操作': icon,
-                '数量': quantity,
-                '价格': f"${price:.2f}",
-                '金额': value_str,
-                '原因': reason[:30] + '...' if len(reason) > 30 else reason
+                'Stock': symbol,
+                'Action': icon,
+                'Quantity': quantity,
+                'Price': f"${price:.2f}",
+                'Amount': value_str,
+                'Reason': reason[:30] + '...' if len(reason) > 30 else reason
             })
-        
+
         df_orders = pd.DataFrame(order_data)
-        
-        # 订单统计
+
+        # Order statistics
         net_flow = total_proceeds - total_cost
         stats_text = f"""
-        📊 订单统计:
-        • 总订单数: {len(orders)}
-        • 买入成本: ${total_cost:,.2f}
-        • 卖出收入: ${total_proceeds:,.2f}
-        • 净现金流: ${net_flow:,.2f}
+        📊 Order Statistics:
+        • Total Orders: {len(orders)}
+        • Buy Cost: ${total_cost:,.2f}
+        • Sell Proceeds: ${total_proceeds:,.2f}
+        • Net Cash Flow: ${net_flow:,.2f}
         """
-        
-        return df_orders, stats_text, f"🎯 交易订单 - {len(orders)} 笔"
+
+        return df_orders, stats_text, f"🎯 Trading Orders - {len(orders)} orders"
 
     def create_dashboard(self):
-        """创建主仪表板"""
-        
-        # 自定义CSS样式
+        """Create main dashboard"""
+
+        # Custom CSS styles
         custom_css = """
         .gradio-container {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -438,155 +437,158 @@ class TradingDashboard:
             margin: 10px 0;
         }
         """
-        
+
         with gr.Blocks(
             title="AI Trading System - Professional Dashboard",
             css=custom_css,
             theme=gr.themes.Soft()
         ) as demo:
-            
-            # 页面标题
+
+            # Page title
             gr.HTML("""
             <div class="dashboard-header">
                 <h1>🚀 AI Trading System - Professional Dashboard</h1>
-                <p>智能量化交易分析平台 | AI驱动的市场分析与投资决策</p>
+                <p>Intelligent Quantitative Trading Analysis Platform | AI-driven Market Analysis and Investment Decisions</p>
             </div>
             """)
-            
-            # 状态控制面板
+
+            # Status control panel
             with gr.Row():
                 with gr.Column(scale=1):
-                    refresh_btn = gr.Button("🔄 刷新数据", variant="primary", size="lg")
-                    run_analysis_btn = gr.Button("⚡ 运行分析", variant="secondary", size="lg")
-                with gr.Column(scale=2):
-                    symbol_dropdown = gr.Dropdown(
-                        label="📊 选择股票",
-                        choices=["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
-                        value="AAPL",
-                        interactive=True
-                    )
-                with gr.Column(scale=2):
+                    refresh_btn = gr.Button("🔄 Refresh Data", variant="primary", size="lg")
+                    run_analysis_btn = gr.Button("⚡ Run Analysis", variant="secondary", size="lg")
+                with gr.Column(scale=3):
                     status_text = gr.Textbox(
-                        label="📈 系统状态",
-                        value="准备就绪 - 点击'刷新数据'开始分析",
+                        label="📈 System Status",
+                        value="Ready - Click 'Refresh Data' to start analysis",
                         interactive=False,
                         lines=2
                     )
-            
-            # 数据状态
+
+            # Data state
             results_state = gr.State()
-            
-            # 主要分析标签页
+
+            # Main analysis tabs
             with gr.Tabs():
-                
-                # 市场概览标签页
-                with gr.Tab("📊 市场概览", id="market_overview"):
-                    gr.Markdown("### 📈 实时市场数据")
+
+                # Market overview tab
+                with gr.Tab("📊 Market Overview", id="market_overview"):
+                    gr.Markdown("### 📈 Real-time Market Data")
                     with gr.Row():
                         market_table = gr.Dataframe(
-                            label="市场概览",
+                            label="Market Overview",
                             interactive=False,
                             wrap=True
                         )
                         market_summary = gr.Textbox(
-                            label="市场摘要",
+                            label="Market Summary",
                             interactive=False,
                             lines=3
                         )
-                
-                # 技术分析标签页
-                with gr.Tab("📈 技术分析", id="technical_analysis"):
-                    gr.Markdown("### 🔍 技术指标分析")
+
+                # Technical analysis tab
+                with gr.Tab("📈 Technical Analysis", id="technical_analysis"):
+                    gr.Markdown("### 🔍 Technical Indicators Analysis")
+                    
+                    # Stock selection for technical analysis
                     with gr.Row():
-                        price_chart = gr.Plot(label="价格走势图", show_label=False)
-                
-                # AI分析标签页
-                with gr.Tab("🤖 AI分析", id="ai_analysis"):
-                    gr.Markdown("### 🧠 人工智能市场预测")
+                        symbol_dropdown = gr.Dropdown(
+                            label="📊 Select Stock for Analysis",
+                            choices=["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
+                            value="AAPL",
+                            interactive=True
+                        )
+                    
+                    with gr.Row():
+                        price_chart = gr.Plot(label="Price Trend Chart", show_label=False)
+
+                # AI analysis tab
+                with gr.Tab("🤖 AI Analysis", id="ai_analysis"):
+                    gr.Markdown("### 🧠 AI Market Prediction")
                     with gr.Row():
                         with gr.Column(scale=1):
                             ai_table = gr.Dataframe(
-                                label="AI预测结果",
+                                label="AI Prediction Results",
                                 interactive=False
                             )
                         with gr.Column(scale=2):
-                            ai_chart = gr.Plot(label="预测分析图", show_label=False)
+                            ai_chart = gr.Plot(label="Prediction Analysis Chart", show_label=False)
                     ai_summary = gr.Textbox(
-                        label="AI分析摘要",
+                        label="AI Analysis Summary",
                         interactive=False,
                         lines=2
                     )
-                
-                # 交易信号标签页
-                with gr.Tab("📈 交易信号", id="trading_signals"):
-                    gr.Markdown("### 🎯 智能交易信号")
+
+                # Trading signals tab
+                with gr.Tab("📈 Trading Signals", id="trading_signals"):
+                    gr.Markdown("### 🎯 Intelligent Trading Signals")
                     with gr.Row():
                         with gr.Column(scale=1):
                             signals_table = gr.Dataframe(
-                                label="交易信号",
+                                label="Trading Signals",
                                 interactive=False
                             )
                         with gr.Column(scale=2):
-                            signals_chart = gr.Plot(label="信号分析图", show_label=False)
+                            signals_chart = gr.Plot(label="Signal Analysis Chart", show_label=False)
                     signals_summary = gr.Textbox(
-                        label="信号摘要",
+                        label="Signal Summary",
                         interactive=False,
                         lines=2
                     )
-                
-                # 投资组合标签页
-                with gr.Tab("💼 投资组合", id="portfolio"):
-                    gr.Markdown("### 💰 投资组合管理")
-                    
-                    # 投资组合概览
+
+                # Portfolio tab
+                with gr.Tab("💼 Portfolio", id="portfolio"):
+                    gr.Markdown("### 💰 Portfolio Management")
+
+                    # Portfolio overview
                     with gr.Row():
                         with gr.Column(scale=1):
                             portfolio_overview = gr.Dataframe(
-                                label="投资组合概览",
+                                label="Portfolio Overview",
                                 interactive=False
                             )
                         with gr.Column(scale=1):
-                            portfolio_pie = gr.Plot(label="资产配置", show_label=False)
-                    
-                    # 持仓详情
-                    gr.Markdown("#### 📊 持仓详情")
+                            portfolio_pie = gr.Plot(label="Asset Allocation", show_label=False)
+
+                    # Position details
+                    gr.Markdown("#### 📊 Position Details")
                     positions_table = gr.Dataframe(
-                        label="当前持仓",
+                        label="Current Positions",
                         interactive=False
                     )
                     portfolio_summary = gr.Textbox(
-                        label="投资组合摘要",
+                        label="Portfolio Summary",
                         interactive=False,
                         lines=2
                     )
-                
-                # 交易订单标签页
-                with gr.Tab("🎯 交易订单", id="orders"):
-                    gr.Markdown("### 📋 智能订单生成")
+
+                # Trading orders tab
+                with gr.Tab("🎯 Trading Orders", id="orders"):
+                    gr.Markdown("### 📋 Intelligent Order Generation")
                     orders_table = gr.Dataframe(
-                        label="生成的交易订单",
+                        label="Generated Trading Orders",
                         interactive=False
                     )
                     orders_stats = gr.Textbox(
-                        label="订单统计",
+                        label="Order Statistics",
                         interactive=False,
                         lines=4
                     )
                     orders_summary = gr.Textbox(
-                        label="订单摘要",
+                        label="Order Summary",
                         interactive=False,
                         lines=2
                     )
-            
-            # 事件处理函数
+
+            # Event handling functions
             def load_and_refresh():
-                """加载和刷新所有数据"""
+                """Load and refresh all data"""
                 results = self.load_latest_results()
                 portfolio_data = self.load_portfolio_data()
-                
+
                 if not results:
                     return (
-                        "❌ 未找到分析数据，请先运行交易流水线",
+                        "❌ No analysis data found, please run the trading pipeline first",
                         results,
                         None, None, None,  # market
                         None, None, None,   # ai
@@ -594,24 +596,24 @@ class TradingDashboard:
                         None, None, None, None,  # portfolio
                         None, None, None    # orders
                     )
-                
-                # 市场概览
+
+                # Market overview
                 market_df, market_text = self.create_market_overview(results)
-                
-                # AI分析
+
+                # AI analysis
                 ai_df, ai_fig, ai_text = self.create_ai_analysis(results)
-                
-                # 交易信号
+
+                # Trading signals
                 signals_df, signals_fig, signals_text = self.create_trading_signals(results)
-                
-                # 投资组合
+
+                # Portfolio
                 portfolio_overview_df, positions_df, portfolio_fig, portfolio_text = self.create_portfolio_dashboard(portfolio_data)
-                
-                # 订单
+
+                # Orders
                 orders_df, orders_stats_text, orders_text = self.create_orders_panel(results)
-                
+
                 return (
-                    f"✅ 数据加载完成 - {len(results)} 个分析步骤",
+                    f"✅ Data loaded successfully - {len(results)} analysis steps",
                     results,
                     market_df, market_text,  # market
                     ai_df, ai_fig, ai_text,  # ai
@@ -619,14 +621,14 @@ class TradingDashboard:
                     portfolio_overview_df, positions_df, portfolio_fig, portfolio_text,  # portfolio
                     orders_df, orders_stats_text, orders_text  # orders
                 )
-            
+
             def update_chart(symbol, results):
-                """更新价格图表"""
+                """Update price chart"""
                 if not symbol or not results:
                     return None
                 return self.create_price_chart(symbol, results)
-            
-            # 绑定事件
+
+            # Bind events
             refresh_btn.click(
                 load_and_refresh,
                 outputs=[
@@ -638,7 +640,7 @@ class TradingDashboard:
                     orders_table, orders_stats, orders_summary
                 ]
             )
-            
+
             run_analysis_btn.click(
                 load_and_refresh,
                 outputs=[
@@ -650,24 +652,24 @@ class TradingDashboard:
                     orders_table, orders_stats, orders_summary
                 ]
             )
-            
+
             symbol_dropdown.change(
                 update_chart,
                 inputs=[symbol_dropdown, results_state],
                 outputs=[price_chart]
             )
-        
+
         return demo
 
 def main():
-    """主函数"""
+    """Main function"""
     dashboard = TradingDashboard()
     demo = dashboard.create_dashboard()
-    
-    print("🚀 启动AI交易系统专业仪表板...")
-    print("📊 现代化界面设计，专业交易体验")
-    print("🔗 仪表板将在浏览器中打开")
-    
+
+    print("🚀 Starting AI Trading System Professional Dashboard...")
+    print("📊 Modern interface design, professional trading experience")
+    print("🔗 Dashboard will open in browser")
+
     demo.launch(
         server_name="0.0.0.0",
         server_port=7860,
