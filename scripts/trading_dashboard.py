@@ -490,11 +490,12 @@ class TradingDashboard:
 
                     # Stock selection for technical analysis
                     with gr.Row():
-                        symbol_dropdown = gr.Dropdown(
-                            label="📊 Select Stock for Analysis",
+                        symbol_radio = gr.Radio(
                             choices=["AAPL", "MSFT", "GOOGL", "TSLA", "NVDA"],
                             value="AAPL",
-                            interactive=True
+                            interactive=True,
+                            type="value",
+                            show_label=False
                         )
 
                     with gr.Row():
@@ -592,7 +593,8 @@ class TradingDashboard:
                         None, None, None,   # ai
                         None, None, None,   # signals
                         None, None, None, None,  # portfolio
-                        None, None, None    # orders
+                        None, None, None,   # orders
+                        None  # price_chart
                     )
 
                 # Market overview
@@ -610,6 +612,9 @@ class TradingDashboard:
                 # Orders
                 orders_df, orders_stats_text, orders_text = self.create_orders_panel(results)
 
+                # Create initial price chart for default symbol (AAPL)
+                initial_chart = self.create_price_chart("AAPL", results)
+
                 return (
                     f"✅ Data loaded successfully - {len(results)} analysis steps",
                     results,
@@ -617,7 +622,8 @@ class TradingDashboard:
                     ai_df, ai_fig, ai_text,  # ai
                     signals_df, signals_fig, signals_text,  # signals
                     portfolio_overview_df, positions_df, portfolio_fig, portfolio_text,  # portfolio
-                    orders_df, orders_stats_text, orders_text  # orders
+                    orders_df, orders_stats_text, orders_text,  # orders
+                    initial_chart  # price_chart
                 )
 
             def update_chart(symbol, results):
@@ -635,7 +641,8 @@ class TradingDashboard:
                     ai_table, ai_chart, ai_summary,
                     signals_table, signals_chart, signals_summary,
                     portfolio_overview, positions_table, portfolio_pie, portfolio_summary,
-                    orders_table, orders_stats, orders_summary
+                    orders_table, orders_stats, orders_summary,
+                    price_chart  # Add price chart to refresh outputs
                 ]
             )
 
@@ -647,13 +654,14 @@ class TradingDashboard:
                     ai_table, ai_chart, ai_summary,
                     signals_table, signals_chart, signals_summary,
                     portfolio_overview, positions_table, portfolio_pie, portfolio_summary,
-                    orders_table, orders_stats, orders_summary
+                    orders_table, orders_stats, orders_summary,
+                    price_chart  # Add price chart to refresh outputs
                 ]
             )
 
-            symbol_dropdown.change(
+            symbol_radio.change(
                 update_chart,
-                inputs=[symbol_dropdown, results_state],
+                inputs=[symbol_radio, results_state],
                 outputs=[price_chart]
             )
 
