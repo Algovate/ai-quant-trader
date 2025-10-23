@@ -7,10 +7,8 @@ import json
 import pandas as pd
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-import plotly.express as px
 from pathlib import Path
-from datetime import datetime, timedelta
-import numpy as np
+import argparse
 
 try:
     import gradio as gr
@@ -489,7 +487,7 @@ class TradingDashboard:
                 # Technical analysis tab
                 with gr.Tab("📈 Technical Analysis", id="technical_analysis"):
                     gr.Markdown("### 🔍 Technical Indicators Analysis")
-                    
+
                     # Stock selection for technical analysis
                     with gr.Row():
                         symbol_dropdown = gr.Dropdown(
@@ -498,7 +496,7 @@ class TradingDashboard:
                             value="AAPL",
                             interactive=True
                         )
-                    
+
                     with gr.Row():
                         price_chart = gr.Plot(label="Price Trend Chart", show_label=False)
 
@@ -663,19 +661,69 @@ class TradingDashboard:
 
 def main():
     """Main function"""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description="AI Trading System Professional Dashboard",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python trading_dashboard.py                    # Start dashboard locally
+  python trading_dashboard.py --share           # Start dashboard with public sharing
+  python trading_dashboard.py --port 8080       # Start on custom port
+  python trading_dashboard.py --share --port 8080  # Share on custom port
+        """
+    )
+
+    parser.add_argument(
+        '--share',
+        action='store_true',
+        help='Enable public sharing (creates public URL via Gradio)'
+    )
+
+    parser.add_argument(
+        '--port',
+        type=int,
+        default=7860,
+        help='Port number for the dashboard (default: 7860)'
+    )
+
+    parser.add_argument(
+        '--host',
+        type=str,
+        default='0.0.0.0',
+        help='Host address to bind to (default: 0.0.0.0)'
+    )
+
+    parser.add_argument(
+        '--no-browser',
+        action='store_true',
+        help='Do not automatically open browser'
+    )
+
+    args = parser.parse_args()
+
     dashboard = TradingDashboard()
     demo = dashboard.create_dashboard()
 
     print("🚀 Starting AI Trading System Professional Dashboard...")
     print("📊 Modern interface design, professional trading experience")
-    print("🔗 Dashboard will open in browser")
+
+    if args.share:
+        print("🌐 Public sharing enabled - Dashboard will be accessible via public URL")
+    else:
+        print("🔒 Local access only - Dashboard accessible at localhost")
+
+    print(f"🔗 Server: {args.host}:{args.port}")
+
+    if not args.no_browser:
+        print("🌐 Dashboard will open in browser")
 
     demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-        share=False,
+        server_name=args.host,
+        server_port=args.port,
+        share=args.share,
         show_error=True,
-        inbrowser=True
+        inbrowser=not args.no_browser
     )
 
 if __name__ == "__main__":

@@ -5,9 +5,11 @@ AI-powered quantitative trading system with intelligent market analysis and port
 ## 📚 Documentation
 
 ### 📖 Documentation Index
+
 - **[docs/INDEX.md](docs/INDEX.md)** - Complete documentation index and navigation
 - **[docs/TESTING.md](docs/TESTING.md)** - Testing guide and documentation
 - **[docs/GLOSSARY.md](docs/GLOSSARY.md)** - System terminology, core data and algorithm details
+- **[docs/QUANTITATIVE_METHODS.md](docs/QUANTITATIVE_METHODS.md)** - Comprehensive quantitative trading methods overview
 - **[docs/SUMMARY.md](docs/SUMMARY.md)** - Documentation system summary and quick navigation
 
 ## ✨ Core Features
@@ -20,6 +22,8 @@ AI-powered quantitative trading system with intelligent market analysis and port
 - **💼 Portfolio Management**: Position tracking, risk assessment, and order generation
 - **⚙️ Flexible Configuration**: YAML configuration files for easy customization
 - **🌐 Web Dashboard**: Modern, interactive trading dashboard with real-time data visualization
+- **📊 Multiple Trading Methods**: Support for traditional technical analysis, machine learning, statistical arbitrage, and more
+- **🔧 Flexible Deployment**: Command-line options for local and public sharing
 
 ## 🚀 Quick Start
 
@@ -113,6 +117,11 @@ ai-quant-trader/
 │   └── portfolio.json           # Portfolio state
 ├── tests/                        # Test modules
 ├── docs/                         # Documentation
+│   ├── INDEX.md                  # Documentation index
+│   ├── TESTING.md                # Testing guide
+│   ├── GLOSSARY.md               # System terminology
+│   ├── QUANTITATIVE_METHODS.md   # Trading methods overview
+│   └── SUMMARY.md                # Documentation summary
 ├── requirements.txt              # Python dependencies
 └── pyproject.toml               # Project configuration
 ```
@@ -157,6 +166,40 @@ portfolio:
   risk_per_trade: 0.02    # 2% risk per trade
 ```
 
+## 🖥️ Command Line Options
+
+### Trading Dashboard Options
+
+The dashboard supports flexible command-line configuration:
+
+```bash
+# Basic usage
+uv run python scripts/trading_dashboard.py
+
+# Available options
+--share          # Enable public sharing (creates public URL)
+--port PORT      # Set port number (default: 7860)
+--host HOST      # Set host address (default: 0.0.0.0)
+--no-browser     # Don't automatically open browser
+--help           # Show help message
+```
+
+### Examples
+
+```bash
+# Local access only
+uv run python scripts/trading_dashboard.py
+
+# Public sharing for remote access
+uv run python scripts/trading_dashboard.py --share
+
+# Custom configuration
+uv run python scripts/trading_dashboard.py --port 8080 --host 127.0.0.1
+
+# Production deployment
+uv run python scripts/trading_dashboard.py --share --port 80 --no-browser
+```
+
 ## 💡 Usage Examples
 
 ### Run Complete Demo
@@ -170,11 +213,23 @@ uv run python scripts/trading_pipeline.py test
 
 ### Launch Web Dashboard
 ```bash
-# Start professional trading dashboard
-./start_dashboard.sh
-
-# Or run directly
+# Start professional trading dashboard (local access)
 uv run python scripts/trading_dashboard.py
+
+# Start with public sharing (accessible via public URL)
+uv run python scripts/trading_dashboard.py --share
+
+# Custom port and host
+uv run python scripts/trading_dashboard.py --port 8080 --host 0.0.0.0
+
+# Public sharing with custom port
+uv run python scripts/trading_dashboard.py --share --port 8080
+
+# Start without opening browser
+uv run python scripts/trading_dashboard.py --no-browser
+
+# View all available options
+uv run python scripts/trading_dashboard.py --help
 ```
 
 ### Portfolio Management
@@ -234,6 +289,46 @@ for order in orders:
 - **Custom strategies**: Extend `src/strategy/llm_signal_generator.py`
 - **Portfolio management**: Modify `src/strategy/portfolio_manager.py` and `src/strategy/order_generator.py`
 - **Risk control**: Adjust portfolio parameters in `config/config.yaml`
+- **Alternative methods**: Implement traditional technical analysis, machine learning, or statistical arbitrage strategies
+- **Dashboard customization**: Modify `scripts/trading_dashboard.py` for custom UI components
+
+## 📊 Quantitative Trading Methods
+
+### Beyond LLM: Comprehensive Trading Strategies
+
+The system supports multiple quantitative trading approaches beyond LLM predictions:
+
+#### 🎯 Traditional Technical Analysis
+- **Trend Following**: Moving averages, MACD, Bollinger Bands
+- **Mean Reversion**: RSI, Stochastic Oscillator, Williams %R
+- **Volume Analysis**: Volume-price trend, on-balance volume
+
+#### 🤖 Machine Learning Approaches
+- **Supervised Learning**: Random Forest, SVM, Neural Networks
+- **Deep Learning**: LSTM, CNN for time series prediction
+- **Unsupervised Learning**: K-means clustering for market regimes
+
+#### 📈 Statistical Arbitrage
+- **Pairs Trading**: Cointegration-based strategies
+- **Mean Reversion**: Price deviation strategies
+- **Cross-Asset Arbitrage**: Multi-asset correlation strategies
+
+#### 🏗️ Factor Investing
+- **Value Factors**: P/E, P/B, P/S ratios
+- **Momentum Factors**: Price momentum, earnings momentum
+- **Quality Factors**: ROE, ROA, debt-to-equity ratios
+
+#### ⚡ High-Frequency Trading
+- **Microstructure Strategies**: Order flow imbalance
+- **Short-term Momentum**: Tick-level price movements
+- **Spread Arbitrage**: Bid-ask spread opportunities
+
+#### 🛡️ Risk Management
+- **Dynamic Hedging**: Delta hedging strategies
+- **VaR Calculation**: Historical and Monte Carlo methods
+- **Stress Testing**: Scenario analysis and backtesting
+
+For detailed implementation examples and code, see **[docs/QUANTITATIVE_METHODS.md](docs/QUANTITATIVE_METHODS.md)**.
 
 ## 💼 Portfolio Management Features
 
