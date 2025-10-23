@@ -22,13 +22,15 @@ sys.path.append(os.path.join(os.path.dirname(__file__), '..'))
 
 from src.models.llm_predictor import LLMPredictor, create_llm_predictor
 from src.strategy.llm_signal_generator import LLMSignalGenerator, create_llm_signal_generator
+from src.strategy.portfolio_manager import Portfolio, PortfolioManager
+from src.strategy.order_generator import OrderGenerator, create_order_generator
 from src.data.data_fetcher import DataFetcher
 from src.data.data_processor import DataProcessor
 from src.data.feature_engineer import FeatureEngineer
 from src.core.utils import (
     load_config, setup_logging, get_default_model, print_section_header,
     print_step_header, print_success, print_error, print_warning,
-    ensure_api_key, format_percentage
+    ensure_api_key, format_percentage, format_currency, load_portfolio
 )
 
 logger = logging.getLogger(__name__)
@@ -37,21 +39,21 @@ logger = logging.getLogger(__name__)
 def save_intermediate_result(data, filename, step_name, output_dir="data/results"):
     """Save intermediate results to files for later verification."""
     os.makedirs(output_dir, exist_ok=True)
-    
+
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    
+
     # Always save as JSON format
     if not filename.endswith('.json'):
         filename = filename.replace('.pkl', '.json').replace('.csv', '.json')
-    
+
     filepath = os.path.join(output_dir, f"{step_name}_{timestamp}_{filename}")
-    
+
     # Convert data to JSON-serializable format
     json_data = convert_to_json_serializable(data)
-    
+
     with open(filepath, 'w', encoding='utf-8') as f:
         json.dump(json_data, f, indent=2, ensure_ascii=False, default=str)
-    
+
     print(f"💾 Saved {step_name} results to: {filepath}")
     return filepath
 
@@ -61,7 +63,7 @@ def convert_to_json_serializable(data):
     import pandas as pd
     import numpy as np
     from datetime import datetime, date
-    
+
     if isinstance(data, dict):
         return {key: convert_to_json_serializable(value) for key, value in data.items()}
     elif isinstance(data, list):
@@ -279,6 +281,99 @@ def run_llm_demo():
 
     print_success(f"Successfully generated signals for {len(trading_signals)} symbols")
 
+    # Step 6: Generate Portfolio Orders
+    print_step_header("🎯 Step 6", "Generating Portfolio Orders")
+
+    logger.info("Loading portfolio and generating orders...")
+
+    # Load portfolio
+    portfolio_config = config.get('portfolio', {})
+    portfolio_file = portfolio_config.get('portfolio_file', 'data/portfolio.json')
+    portfolio = load_portfolio(portfolio_file)
+    portfolio_manager = PortfolioManager(portfolio)
+
+    # Get current prices from market data
+    current_prices = {}
+    for symbol, data in processed_data.items():
+        if not data.empty and 'close' in data.columns:
+            current_prices[symbol] = data['close'].iloc[-1]
+
+    # Display current portfolio status
+    portfolio_summary = portfolio.get_portfolio_summary(current_prices)
+    print(f"\n📊 Current Portfolio:")
+    print(f"   Cash: {format_currency(portfolio_summary['cash'])}")
+    print(f"   Positions: {portfolio_summary['position_count']}")
+    print(f"   Total Value: {format_currency(portfolio_summary['total_value'])}")
+
+    if portfolio_summary['positions']:
+        print(f"\n📈 Current Positions:")
+        for symbol, pos in portfolio_summary['positions'].items():
+            pnl = pos['unrealized_pnl']
+            pnl_str = f"+{format_currency(pnl)}" if pnl >= 0 else format_currency(pnl)
+            print(f"   {symbol}: {pos['shares']} shares @ {format_currency(pos['avg_price'])} "
+                  f"(Current: {format_currency(pos['current_price'])}, P&L: {pnl_str})")
+
+    # Generate orders
+    order_generator = create_order_generator(portfolio_manager, portfolio_config)
+    orders = order_generator.generate_orders(trading_signals, processed_data)
+
+    # Validate orders
+    valid_orders = order_generator.validate_orders(orders)
+
+    print_section_header("🎯 GENERATED ORDERS", 60)
+
+    if valid_orders:
+        total_cost = 0
+        total_proceeds = 0
+
+        for order in valid_orders:
+            symbol = order['symbol']
+            action = order['action']
+            quantity = order['quantity']
+            price = order['estimated_price']
+            reason = order['reason']
+            risk_score = order['risk_score']
+
+            if action == 'BUY':
+                cost = order['estimated_cost']
+                total_cost += cost
+                action_icon = "🟢 BUY"
+                print(f"\n{action_icon} {symbol}: {quantity} shares @ {format_currency(price)} ({format_currency(cost)})")
+            else:
+                proceeds = order['estimated_proceeds']
+                total_proceeds += proceeds
+                action_icon = "🔴 SELL"
+                print(f"\n{action_icon} {symbol}: {quantity} shares @ {format_currency(price)} ({format_currency(proceeds)})")
+
+            print(f"   Reason: {reason}")
+            print(f"   Risk Score: {risk_score:.3f}")
+
+        print(f"\n📊 Order Summary:")
+        print(f"   Total Orders: {len(valid_orders)}")
+        print(f"   Total Cost: {format_currency(total_cost)}")
+        print(f"   Total Proceeds: {format_currency(total_proceeds)}")
+        print(f"   Net Cash Flow: {format_currency(total_proceeds - total_cost)}")
+
+        # Save orders
+        save_intermediate_result(valid_orders, "portfolio_orders.json", "step6_orders")
+
+        # Save updated portfolio
+        portfolio_manager.portfolio.save_to_file()
+
+        print_success(f"Successfully generated {len(valid_orders)} orders")
+    else:
+        print_warning("No valid orders generated")
+        print("   This could be due to:")
+        print("   - Insufficient cash for buy orders")
+        print("   - No positions to sell for sell orders")
+        print("   - Orders not meeting minimum trade size requirements")
+
+        # Save empty orders
+        save_intermediate_result([], "portfolio_orders.json", "step6_orders")
+
+        # Save portfolio (even with no orders)
+        portfolio_manager.portfolio.save_to_file()
+
     print_section_header("✅ DEMO COMPLETED SUCCESSFULLY!")
 
     print(f"\n📁 Generated Files:")
@@ -289,6 +384,8 @@ def run_llm_demo():
     print(f"     • step3_features_*_engineered_features.json: Engineered features")
     print(f"     • step4_predictions_*_llm_predictions.json: LLM predictions with prompts & responses")
     print(f"     • step5_signals_*_trading_signals.json: Trading signals")
+    print(f"     • step6_orders_*_portfolio_orders.json: Generated portfolio orders")
+    print(f"   - data/portfolio.json: Portfolio state (positions, cash, transactions)")
     print(f"   - Logs: System processing logs")
 
     print(f"\n🚀 Next Steps:")

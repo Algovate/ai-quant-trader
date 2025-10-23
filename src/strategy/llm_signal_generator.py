@@ -130,21 +130,21 @@ class LLMSignalGenerator:
     def generate_signals_from_predictions(self, predictions: Dict[str, Dict]) -> Dict[str, Dict]:
         """
         Generate trading signals from existing LLM predictions.
-        
+
         Args:
             predictions: Dictionary mapping symbols to prediction data
-            
+
         Returns:
             Dictionary mapping symbols to signal information
         """
         signals = {}
-        
+
         for symbol, prediction_data in predictions.items():
             prediction = prediction_data.get('prediction', 0.0)
             confidence = prediction_data.get('confidence', 0.5)
-            
+
             signal_type, strength = self._prediction_to_signal(prediction, confidence)
-            
+
             signals[symbol] = {
                 'signal': signal_type.value,
                 'strength': strength,
@@ -153,9 +153,9 @@ class LLMSignalGenerator:
                 'timestamp': prediction_data.get('timestamp'),
                 'raw_response': prediction_data.get('raw_response', '')
             }
-            
+
             logger.info(f"Generated signal for {symbol}: {signal_type.value} (strength: {strength:.2f}, confidence: {confidence:.2%})")
-        
+
         return signals
 
     def generate_single_signal(self, symbol: str, data: pd.DataFrame) -> Dict:

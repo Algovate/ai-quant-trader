@@ -1,59 +1,273 @@
 """
-LLM-based predictor using OpenRouter API for stock prediction.
+AI Trading System - LLM预测器模块
+
+这个模块实现了基于大语言模型的股票预测功能，支持多种LLM模型、
+智能提示词生成、预测结果解析等功能。提供了完整的预测流水线
+和错误处理机制。
 """
 
 import requests
 import json
 import numpy as np
 import pandas as pd
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple, Union
 import logging
 import time
 import os
 from datetime import datetime, timedelta
-from dotenv import load_dotenv
+from dataclasses import dataclass
+from enum import Enum
 
-from src.core.constants import (
+from ..core.constants import (
+    APIConfig, ModelConfig, TradingConfig, SystemPrompts,
     OPENROUTER_BASE_URL, DEFAULT_TIMEOUT, DEFAULT_MAX_RETRIES,
     DEFAULT_TEMPERATURE, DEFAULT_MAX_TOKENS, DEFAULT_MIN_CONFIDENCE,
     DEFAULT_SYSTEM_PROMPT, FINANCIAL_ANALYST_PROMPT
 )
+from ..core.utils import DisplayUtils, EnvironmentManager
 
-load_dotenv()
 logger = logging.getLogger(__name__)
 
 
-class LLMPredictor:
-    """LLM-based predictor using OpenRouter API."""
+class PredictionType(Enum):
+    """预测类型枚举"""
+    PRICE_DIRECTION = "price_direction"
+    PRICE_TARGET = "price_target"
+    CONFIDENCE = "confidence"
+    REASONING = "reasoning"
 
-    def __init__(self, api_key: str = None, model: str = None):
-        self.api_key = api_key or os.getenv('OPENROUTER_API_KEY')
+
+@dataclass
+class PredictionResult:
+    """预测结果数据类"""
+    symbol: str
+    prediction: str
+    confidence: float
+    reasoning: str
+    price_target: Optional[float] = None
+    timestamp: datetime = None
+
+    def __post_init__(self):
+        if self.timestamp is None:
+            self.timestamp = datetime.now()
+
+
+class LLMResponseParser:
+    """LLM响应解析器"""
+
+    @staticmethod
+    def parse_prediction_response(response: str, symbol: str) -> PredictionResult:
+        """解析预测响应"""
+        try:
+            # 尝试解析JSON格式
+            if response.strip().startswith('{'):
+                data = json.loads(response)
+                return PredictionResult(
+                    symbol=symbol,
+                    prediction=data.get('prediction', 'HOLD'),
+                    confidence=float(data.get('confidence', 0.5)),
+                    reasoning=data.get('reasoning', ''),
+                    price_target=data.get('price_target')
+                )
+
+            # 解析文本格式
+            lines = response.strip().split('\n')
+            prediction = 'HOLD'
+            confidence = 0.5
+            reasoning = ''
+            price_target = None
+
+            for line in lines:
+                line = line.strip()
+                if 'prediction:' in line.lower() or 'signal:' in line.lower():
+                    if 'buy' in line.lower():
+                        prediction = 'BUY'
+                    elif 'sell' in line.lower():
+                        prediction = 'SELL'
+                    else:
+                        prediction = 'HOLD'
+                elif 'confidence:' in line.lower():
+                    try:
+                        confidence = float(line.split(':')[1].strip().replace('%', '')) / 100
+                    except:
+                        pass
+                elif 'reasoning:' in line.lower():
+                    reasoning = line.split(':', 1)[1].strip()
+                elif 'price target:' in line.lower() or 'target:' in line.lower():
+                    try:
+                        price_target = float(line.split(':')[1].strip().replace('$', ''))
+                    except:
+                        pass
+
+            return PredictionResult(
+                symbol=symbol,
+                prediction=prediction,
+                confidence=confidence,
+                reasoning=reasoning,
+                price_target=price_target
+            )
+
+        except Exception as e:
+            logger.error(f"Error parsing prediction response: {e}")
+            return PredictionResult(
+                symbol=symbol,
+                prediction='HOLD',
+                confidence=0.0,
+                reasoning=f"Error parsing response: {str(e)}"
+            )
+
+
+class PromptGenerator:
+    """提示词生成器"""
+
+    def __init__(self, system_prompt: str = SystemPrompts.FINANCIAL_ANALYST_PROMPT):
+        self.system_prompt = system_prompt
+
+    def generate_prediction_prompt(self, symbol: str, data: pd.DataFrame,
+                                 context: Optional[Dict[str, Any]] = None) -> str:
+        """生成预测提示词"""
+        latest_data = data.tail(5)
+
+        prompt = f"""
+Analyze the following stock data for {symbol} and provide a trading prediction.
+
+Recent Price Data:
+{latest_data[['open', 'high', 'low', 'close', 'volume']].to_string()}
+
+Technical Indicators (latest values):
+"""
+
+        # 添加技术指标
+        if 'rsi' in data.columns:
+            prompt += f"RSI: {data['rsi'].iloc[-1]:.2f}\n"
+        if 'macd' in data.columns:
+            prompt += f"MACD: {data['macd'].iloc[-1]:.2f}\n"
+        if 'bb_upper' in data.columns and 'bb_lower' in data.columns:
+            prompt += f"Bollinger Bands: Upper={data['bb_upper'].iloc[-1]:.2f}, Lower={data['bb_lower'].iloc[-1]:.2f}\n"
+
+        prompt += f"""
+Current Price: ${data['close'].iloc[-1]:.2f}
+Volume: {data['volume'].iloc[-1]:,}
+
+Please provide your analysis in the following JSON format:
+{{
+    "prediction": "BUY/SELL/HOLD",
+    "confidence": 0.0-1.0,
+    "reasoning": "Your detailed analysis",
+    "price_target": "Optional target price"
+}}
+
+Focus on:
+1. Technical analysis of price patterns
+2. Volume analysis
+3. Market sentiment indicators
+4. Risk assessment
+5. Short-term price direction (next 1-5 days)
+"""
+
+        if context:
+            prompt += f"\nAdditional Context: {context}\n"
+
+        return prompt
+
+    def generate_market_analysis_prompt(self, symbols: List[str],
+                                      market_data: Dict[str, pd.DataFrame]) -> str:
+        """生成市场分析提示词"""
+        prompt = f"""
+Analyze the overall market conditions for the following stocks: {', '.join(symbols)}
+
+Market Overview:
+"""
+
+        for symbol, data in market_data.items():
+            latest = data.tail(1)
+            prompt += f"""
+{symbol}:
+- Current Price: ${latest['close'].iloc[-1]:.2f}
+- Volume: {latest['volume'].iloc[-1]:,}
+- 5-day Change: {((latest['close'].iloc[-1] / data['close'].iloc[-6]) - 1) * 100:.2f}%
+"""
+
+        prompt += """
+Provide a comprehensive market analysis including:
+1. Overall market sentiment
+2. Sector performance
+3. Risk factors
+4. Trading opportunities
+5. Market outlook
+
+Format your response as JSON with the following structure:
+{
+    "market_sentiment": "bullish/bearish/neutral",
+    "key_insights": ["insight1", "insight2", ...],
+    "risk_factors": ["risk1", "risk2", ...],
+    "opportunities": ["opportunity1", "opportunity2", ...],
+    "outlook": "Your market outlook"
+}
+"""
+
+        return prompt
+
+
+class LLMPredictor:
+    """LLM预测器 - 支持多种模型和智能预测"""
+
+    def __init__(self, api_key: Optional[str] = None, model: Optional[str] = None,
+                 config: Optional[Dict[str, Any]] = None):
+        """初始化LLM预测器"""
+        self.config = config or {}
+        self.env_manager = EnvironmentManager()
+
+        # 获取API密钥
+        self.api_key = api_key or self.env_manager.get_api_key()
         if not self.api_key:
             raise ValueError("API key not provided and OPENROUTER_API_KEY not found in environment variables")
 
-        self.model = model or os.getenv('DEFAULT_LLM_MODEL', DEFAULT_MODEL)
-        self.base_url = OPENROUTER_BASE_URL
+        # 获取模型配置
+        self.model = model or self.config.get('model', ModelConfig.DEFAULT_MODEL)
+        self.temperature = self.config.get('temperature', ModelConfig.DEFAULT_TEMPERATURE)
+        self.max_tokens = self.config.get('max_tokens', ModelConfig.DEFAULT_MAX_TOKENS)
+
+        # API配置
+        self.base_url = APIConfig.OPENROUTER_BASE_URL
+        self.timeout = APIConfig.DEFAULT_TIMEOUT
+        self.max_retries = APIConfig.DEFAULT_MAX_RETRIES
+        self.rate_limit_delay = APIConfig.DEFAULT_RATE_LIMIT_DELAY
+
+        # 请求头
         self.headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://github.com/your-repo",
-            "X-Title": "AI Quant Trading System"
+            "HTTP-Referer": "https://github.com/ai-trading-system",
+            "X-Title": "AI Trading System"
         }
+
+        # 初始化组件
+        self.parser = LLMResponseParser()
+        self.prompt_generator = PromptGenerator()
+
+        # 状态跟踪
         self.is_trained = True
         self.model_type = "llm"
         self.last_prompts = {}
         self.last_responses = {}
+        self.request_count = 0
+        self.error_count = 0
 
-    def _call_llm(self, prompt: str, symbol: str = None, max_retries: int = DEFAULT_MAX_RETRIES) -> str:
+    def _call_llm(self, prompt: str, symbol: Optional[str] = None,
+                  max_retries: Optional[int] = None) -> str:
         """Call OpenRouter API with retry logic."""
+        if max_retries is None:
+            max_retries = self.max_retries
+            
         payload = {
             "model": self.model,
             "messages": [
                 {"role": "system", "content": FINANCIAL_ANALYST_PROMPT},
                 {"role": "user", "content": prompt}
             ],
-            "max_tokens": DEFAULT_MAX_TOKENS,
-            "temperature": DEFAULT_TEMPERATURE
+            "max_tokens": self.max_tokens,
+            "temperature": self.temperature
         }
 
         for attempt in range(max_retries):
@@ -62,7 +276,7 @@ class LLMPredictor:
                     f"{self.base_url}/chat/completions",
                     headers=self.headers,
                     json=payload,
-                    timeout=DEFAULT_TIMEOUT
+                    timeout=self.timeout
                 )
 
                 if response.status_code == 200:
