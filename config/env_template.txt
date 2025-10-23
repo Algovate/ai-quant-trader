@@ -1,0 +1,7 @@
+# OpenRouter API配置
+OPENROUTER_API_KEY=your_openrouter_api_key_here
+
+# 默认模型配置
+DEFAULT_LLM_MODEL=deepseek/deepseek-chat-v3-0324
+DEFAULT_TEMPERATURE=0.3
+DEFAULT_MAX_TOKENS=500
